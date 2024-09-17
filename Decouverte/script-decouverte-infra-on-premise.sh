@@ -2,7 +2,7 @@
 
 # Étape 1 : Découverte des hôtes actifs (en incluant plusieurs types de requêtes : -Ping Scan -ICMP Echo Request -TCP SYN Ping -UDP Ping)
 echo "################################################################# Étape 1 : Découverte des hôtes actifs"
-nmap -sn -PE -PS -PU 192.168.3.0/24 192.168.6.0/24 192.168.7.0/24 -oN live_hosts.txt
+nmap -sn -PE -PS -PU <IP:Mask> <IP:Mask> -oN live_hosts.txt
 echo "##################### Écriture dans fichier live_hosts.txt"
 
 # Étape 2 : Extraction des adresses IP des hôtes trouvés (uniquement les adresses IP)
@@ -29,11 +29,19 @@ echo "################################################################# Étape 4
 grep -E 'open.*http*' detailed_scan.gnmap | awk '{print $2}' > web_hosts.txt
 echo "##################### Écriture d'un fichier web_hosts.txt"
 
+# Vérification si des hôtes web ont été découverts
+if [ -s web_hosts.txt ]; then
+  echo "Quelques hôtes web ont été trouvés et listés dans web_hosts.txt et web_hosts_with_port.txt"
+else
+  echo "Aucun hôte web trouvé."
+fi
+
 # On ressort IP:PORT de tous les sites web identifiés
 awk '/Nmap scan report/{ip=$NF} /open.*http*/{print ip ":" $1}' detailed_scan.nmap | sed 's:/.*::' | sed 's/(\([0-9.]*\))/\1/g' > web_hosts_with_port.txt
 echo "##################### Écriture d'un fichier web_hosts_with_port.txt"
 
 # On ressort les IP et port avec les produits, versions et OS
+# /!\ ATTENTION NE FONCTIONNE PLUS /!\ 
 grep -E "open.*" detailed_scan.nmap | awk '
 /Nmap scan report for/ {
     ip = $5
@@ -49,14 +57,8 @@ grep -E "open.*" detailed_scan.nmap | awk '
 ' | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}:[0-9]+' > web_hosts_with_product_version.txt
 echo "##################### Écriture d'un fichier web_hosts_with_product_version.txt"
 
-# Vérification si des hôtes web ont été découverts
-if [ -s web_hosts.txt ]; then
-  echo "Quelques hôtes web ont été trouvés et listés dans web_hosts.txt et web_hosts_with_port.txt"
-else
-  echo "Aucun hôte web trouvé."
-fi
-
 # Etape 5 : Scan des IP:PORT qui ont des services web exposés dans le but de trouver de nouvelles failles
+#  /!\ ATTENTION /!\ REGLER SOUS ETAPE PRECEDENTE ! /!\
 sudo nikto -h web_hosts_with_port.txt > resultats_NIKTO_web_hosts_with_port.txt
 echo "################################################################# Etape 5 : écriture du fichier nikto_web_hosts.txt"
 
