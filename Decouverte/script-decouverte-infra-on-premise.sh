@@ -65,6 +65,7 @@ echo "################################################################# Etape 5 
 # Étape 6 : Génération du fichier XML à partir du scan détaillé (en incluant le scan complet des services)
 echo "################################################################# Étape 6 : Génération du fichier XML"
 nmap -iL ip_list.txt -A -oX output.xml
+# commande avec le meilleur taux de découverte d'équipements : nmap -n -sn -PE -PP -PS -PA -T4 --source-port 53 <IP:Mask>  , a vérifier : Les infos ressorties sont elles aussi complètes que commande ci dessus
 echo "##################### Écriture d'un fichier output.xml"
 
 # Étape 7 : Conversion du fichier XML en HTML pour visualisation
