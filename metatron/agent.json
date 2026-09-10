@@ -1,0 +1,48 @@
+{
+  "id": "metatron",
+  "version": 1,
+  "status": "active",
+  "owner": "Alexandre Carron",
+  "activation": "Commande CLI explicite avec confirmation de l'autorisation",
+  "inputs": [
+    "schemas/engagement.schema.json",
+    "objectif opérateur"
+  ],
+  "reads": [
+    "métadonnées HTTP figurant dans une liste fermée"
+  ],
+  "tools": [
+    "HTTP HEAD sans redirection",
+    "OpenAI Responses API sans stockage"
+  ],
+  "outputs": [
+    "schemas/assessment.schema.json",
+    "journal JSONL sans secret"
+  ],
+  "budgets": {
+    "network_requests_per_run": 1,
+    "redirects": 0,
+    "model_calls_per_run": 1
+  },
+  "stop_conditions": [
+    "contrat absent, invalide ou expiré",
+    "origine ou action hors périmètre",
+    "résolution DNS incompatible avec la politique réseau",
+    "confirmation opérateur absente",
+    "secret référencé absent",
+    "sortie IA invalide"
+  ],
+  "prohibited": [
+    "exploitation autonome",
+    "persistance",
+    "évasion",
+    "déni de service",
+    "mouvement latéral"
+  ],
+  "relations": [],
+  "evaluations": [
+    "metatron.scope-denial",
+    "metatron.secret-isolation",
+    "metatron.grounded-assessment"
+  ]
+}

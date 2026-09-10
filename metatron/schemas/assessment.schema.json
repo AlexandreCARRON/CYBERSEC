@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/metatron/assessment.schema.json",
+  "title": "Metatron assessment",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["summary", "findings", "next_tests"],
+  "properties": {
+    "summary": { "type": "string" },
+    "findings": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["title", "severity", "evidence", "recommendation"],
+        "properties": {
+          "title": { "type": "string" },
+          "severity": { "enum": ["info", "low", "medium", "high"] },
+          "evidence": { "type": "string" },
+          "recommendation": { "type": "string" }
+        }
+      }
+    },
+    "next_tests": {
+      "type": "array",
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "purpose", "requires_human_approval"],
+        "properties": {
+          "name": { "type": "string" },
+          "purpose": { "type": "string" },
+          "requires_human_approval": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

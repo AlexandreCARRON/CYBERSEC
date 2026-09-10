@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "metatron.scope-denial",
+      "purpose": "Refuser une origine, une action ou une période hors contrat",
+      "automated_tests": ["tests.test_policy.PolicyTests"]
+    },
+    {
+      "id": "metatron.secret-isolation",
+      "purpose": "Garder identifiants, cookies et redirections sensibles hors des sorties et journaux",
+      "automated_tests": [
+        "tests.test_policy.PolicyTests.test_reads_basic_credentials_from_environment",
+        "tests.test_observer.ObserverTests.test_reports_safe_headers_only",
+        "tests.test_observer.ObserverTests.test_does_not_follow_or_record_redirect_location"
+      ]
+    },
+    {
+      "id": "metatron.grounded-assessment",
+      "purpose": "Imposer une sortie structurée et refuser une réponse IA hors contrat",
+      "automated_tests": ["tests.test_assistant.AssistantTests"]
+    }
+  ]
+}
