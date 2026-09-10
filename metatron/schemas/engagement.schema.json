@@ -4,52 +4,36 @@
   "title": "Metatron engagement contract",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "schema_version",
-    "engagement_id",
-    "title",
-    "authorized_by",
-    "starts_at",
-    "expires_at",
-    "network_policy",
-    "scope"
-  ],
+  "required": ["schema_version", "engagement_id", "title", "authorized_by", "starts_at", "expires_at", "network_policy", "max_tool_runs", "scope"],
   "properties": {
-    "schema_version": { "const": 1 },
+    "schema_version": { "const": 2 },
     "engagement_id": { "type": "string", "minLength": 1 },
     "title": { "type": "string", "minLength": 1 },
     "authorized_by": { "type": "string", "minLength": 1 },
     "starts_at": { "type": "string", "format": "date-time" },
     "expires_at": { "type": "string", "format": "date-time" },
-    "network_policy": {
-      "enum": ["loopback_only", "private_and_loopback", "public_only"]
-    },
+    "network_policy": { "enum": ["loopback_only", "private_and_loopback", "public_only"] },
+    "max_tool_runs": { "type": "integer", "minimum": 1, "maximum": 20 },
     "scope": {
       "type": "array",
       "minItems": 1,
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["origin", "allowed_actions"],
+        "required": ["origin", "allowed_tools"],
         "properties": {
           "origin": { "type": "string", "format": "uri" },
-          "allowed_actions": {
+          "allowed_tools": {
             "type": "array",
+            "minItems": 1,
             "uniqueItems": true,
-            "items": { "enum": ["http_observe", "ai_assess"] }
+            "items": { "enum": ["dns", "http_headers", "whois", "nmap_service", "whatweb", "nikto"] }
           },
           "auth": {
             "oneOf": [
+              { "type": "object", "additionalProperties": false, "required": ["mode"], "properties": { "mode": { "const": "none" } } },
               {
-                "type": "object",
-                "additionalProperties": false,
-                "required": ["mode"],
-                "properties": { "mode": { "const": "none" } }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": ["mode", "username_env", "password_env"],
+                "type": "object", "additionalProperties": false, "required": ["mode", "username_env", "password_env"],
                 "properties": {
                   "mode": { "const": "basic" },
                   "username_env": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
@@ -57,9 +41,7 @@
                 }
               },
               {
-                "type": "object",
-                "additionalProperties": false,
-                "required": ["mode", "token_env"],
+                "type": "object", "additionalProperties": false, "required": ["mode", "token_env"],
                 "properties": {
                   "mode": { "const": "bearer" },
                   "token_env": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" }

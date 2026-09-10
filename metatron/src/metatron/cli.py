@@ -6,15 +6,18 @@ import os
 import sys
 import time
 import uuid
+from pathlib import Path
 from typing import Any, Dict, Optional, Sequence
 
-from metatron.assistant import DEFAULT_MODEL, AssessmentError, assess
+from metatron.assistant import assess
 from metatron.audit import append_event
-from metatron.models import EngagementError
-from metatron.observer import ObservationError, observe_http
-from metatron.policy import authentication_headers, authorize, load_engagement
+from metatron.models import AssessmentError, EngagementError, ExecutionError
+from metatron.planning import create_plan, load_plan, save_plan
+from metatron.policy import load_engagement
+from metatron.runner import execute_plan
 
 
+# Build explicit subcommands so planning cannot accidentally perform network actions.
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Metatron, assistant de pentest autorisé")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -22,38 +25,44 @@ def _parser() -> argparse.ArgumentParser:
     validate = subparsers.add_parser("validate", help="Valider un contrat d'engagement")
     validate.add_argument("engagement")
 
-    for command in ("observe", "assess"):
-        sub = subparsers.add_parser(command)
-        sub.add_argument("engagement")
-        sub.add_argument("--target", required=True)
-        sub.add_argument(
-            "--acknowledge-authorization",
-            action="store_true",
-            help="Confirme que l'opérateur dispose d'une autorisation explicite et active",
-        )
-        sub.add_argument("--audit-log", default=".metatron/audit.jsonl")
-    assess_parser = subparsers.choices["assess"]
-    assess_parser.add_argument("--objective", required=True)
-    assess_parser.add_argument("--model", default=os.environ.get("METATRON_MODEL", DEFAULT_MODEL))
+    plan = subparsers.add_parser("plan", help="Créer un plan signé par son contenu, sans l'exécuter")
+    plan.add_argument("engagement")
+    plan.add_argument("--target", required=True)
+    plan.add_argument("--tool", action="append", required=True, dest="tools")
+    plan.add_argument("--ttl-minutes", type=int, default=15)
+    plan.add_argument("--output", required=True)
+
+    execute = subparsers.add_parser("execute", help="Exécuter un plan préalablement approuvé")
+    execute.add_argument("engagement")
+    execute.add_argument("--plan", required=True)
+    execute.add_argument("--approve", required=True, help="Identifiant exact du plan approuvé")
+    execute.add_argument("--approve-noisy", action="store_true")
+    execute.add_argument("--audit-log", default=".metatron/audit.jsonl")
+
+    report = subparsers.add_parser("assess", help="Analyser un fichier de preuves avec Ollama local")
+    report.add_argument("--evidence", required=True)
+    report.add_argument("--objective", required=True)
+    report.add_argument("--model", default=os.environ.get("METATRON_MODEL", ""))
+    report.add_argument("--endpoint", default=os.environ.get("METATRON_OLLAMA_URL", "http://127.0.0.1:11434"))
+    report.add_argument("--audit-log", default=".metatron/audit.jsonl")
     return parser
 
 
+# Emit machine-readable output for repeatable CLI workflows.
 def _emit(value: Dict[str, Any]) -> None:
     print(json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True))
 
 
-def _authorized_observation(args: argparse.Namespace, action: str):
-    if not args.acknowledge_authorization:
-        raise EngagementError("Ajouter --acknowledge-authorization pour confirmer l'autorisation active.")
-    engagement = load_engagement(args.engagement)
-    origin, target, scope_entry = authorize(engagement, args.target, action)
-    if action == "ai_assess":
-        authorize(engagement, args.target, "http_observe")
-    headers = authentication_headers(scope_entry.auth)
-    observation = observe_http(target, origin, auth_headers=headers)
-    return engagement, observation
+# Read evidence as inert JSON and reject every executable serialization format.
+def _load_json(path: str) -> Dict[str, Any]:
+    with Path(path).open("r", encoding="utf-8") as handle:
+        value = json.load(handle)
+    if not isinstance(value, dict):
+        raise EngagementError("Le fichier de preuves doit contenir un objet JSON.")
+    return value
 
 
+# Route the four lifecycle phases while preserving their side-effect boundaries.
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = _parser().parse_args(argv)
     run_id = str(uuid.uuid4())
@@ -70,33 +79,46 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 }
             )
             return 0
+        if args.command == "plan":
+            engagement = load_engagement(args.engagement)
+            plan = create_plan(
+                engagement,
+                args.target,
+                args.tools,
+                ttl_minutes=args.ttl_minutes,
+            )
+            save_plan(plan, args.output)
+            _emit(plan.to_dict())
+            return 0
+        if args.command == "execute":
+            engagement = load_engagement(args.engagement)
+            plan = load_plan(args.plan)
+            results = execute_plan(
+                engagement,
+                plan,
+                args.approve,
+                approve_noisy=args.approve_noisy,
+                audit_path=args.audit_log,
+            )
+            _emit({"plan_id": plan.plan_id, "results": [result.to_dict() for result in results]})
+            return 0
 
-        action = "http_observe" if args.command == "observe" else "ai_assess"
-        engagement, observation = _authorized_observation(args, action)
-        output: Dict[str, Any] = observation.to_dict()
-        model = None
-        if args.command == "assess":
-            model = args.model
-            output = {
-                "observation": output,
-                "assessment": assess(output, args.objective, model=model),
-            }
+        evidence = _load_json(args.evidence)
+        assessment = assess(evidence, args.objective, args.model, endpoint=args.endpoint)
         append_event(
             args.audit_log,
             {
                 "run_id": run_id,
                 "agent": "metatron",
-                "action": args.command,
-                "engagement_id": engagement.engagement_id,
-                "target_origin": observation.target_origin,
-                "model": model,
+                "action": "assess",
+                "model": args.model,
                 "state": "completed",
                 "duration_ms": round((time.monotonic() - started) * 1000),
             },
         )
-        _emit(output)
+        _emit(assessment)
         return 0
-    except (EngagementError, ObservationError, AssessmentError, OSError, json.JSONDecodeError) as exc:
+    except (AssessmentError, EngagementError, ExecutionError, OSError, json.JSONDecodeError) as exc:
         audit_path = getattr(args, "audit_log", None)
         if audit_path:
             append_event(

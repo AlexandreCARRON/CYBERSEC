@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "upstreams": [
+    {
+      "name": "sooryathejas/METATRON",
+      "repository": "https://github.com/sooryathejas/METATRON",
+      "ref": "main",
+      "commit": "9dd2ee3daa33397453c76e9fcba446f117d22cb6",
+      "tree": "97a096dca555cfaf11e1e9ba454083b31cf599d4",
+      "imported_at": "2026-09-10",
+      "license": "MIT",
+      "path": "vendor/sooryathejas-metatron",
+      "runtime_enabled": false,
+      "manifest": "vendor/sooryathejas-metatron.manifest.sha256"
+    }
+  ]
+}

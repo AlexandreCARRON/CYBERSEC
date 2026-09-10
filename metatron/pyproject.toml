@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "metatron-pentest"
-version = "0.1.0"
-description = "Assistant de test d'intrusion à périmètre autorisé"
+version = "0.2.0"
+description = "Control plane déterministe pour tests d'intrusion autorisés"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "GPL-3.0-or-later" }
@@ -13,7 +13,6 @@ authors = [{ name = "Alexandre Carron" }]
 dependencies = []
 
 [project.optional-dependencies]
-ai = ["openai>=2.0,<3"]
 dev = []
 
 [project.scripts]

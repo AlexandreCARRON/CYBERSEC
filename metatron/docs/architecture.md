@@ -1,33 +1,60 @@
 ---
 id: metatron.architecture
-kind: decision
-status: draft
+kind: reference
+status: active
 last_reviewed: 2026-09-10
 sensitivity: public
-sources: ["https://github.com/AlexandreCARRON/ai-foundation-carron", "https://developers.openai.com/api/docs/guides/structured-outputs"]
+sources:
+  - https://github.com/sooryathejas/METATRON/tree/9dd2ee3daa33397453c76e9fcba446f117d22cb6
+  - https://github.com/AlexandreCARRON/ai-foundation-carron
 ---
 
-# Architecture initiale de Metatron
+# Architecture Metatron v2
 
 ## Décision
 
-Metatron démarre avec un agent unique et un flux déterministe : charger le contrat d'engagement, autoriser l'action, observer la cible sans suivre les redirections, puis produire au besoin une analyse structurée avec l'API Responses.
+Metatron reste mono-agent. Les étapes contrôlables sont un workflow déterministe ; l'IA locale est une capacité paresseuse de synthèse, sans outils et sans effet externe.
 
-## Frontières
+```text
+Contrat v2
+   │ validation temporelle, origine, DNS, budget
+   ▼
+Plan JSON ── hash du contenu ──► approbation humaine exacte
+   │                                  │
+   └──────────────────────────────────┘
+                   │ nouveau contrôle DNS
+                   ▼
+        adaptateurs argv fermés / HEAD sans redirection
+                   │
+                   ▼
+      preuves JSON + audit de métadonnées
+                   │
+                   ▼ option explicite
+         Ollama local, sortie sous schéma
+```
 
-- Le contrat JSON porte le propriétaire, la période, les origines, les actions et les références de secrets autorisées.
-- La politique locale contrôle l'origine et toutes les adresses issues de la résolution DNS. Une cible SaaS exige la politique `public_only`, qui refuse les adresses non publiques.
-- Les secrets proviennent uniquement de variables d'environnement et restent hors des sorties, journaux et entrées du modèle.
-- L'observateur utilise uniquement une requête `HEAD`, ne suit aucune redirection et ne conserve qu'une liste fermée d'en-têtes de sécurité.
-- Le modèle reçoit des métadonnées structurées, jamais le corps de la page, et n'exécute aucun outil.
-- Le journal contient l'origine et l'état de l'exécution, sans chemin, requête, en-tête ni contenu de cible.
+## Frontières de confiance
 
-## Conditions d'arrêt
+Le contrat est la source d'autorité. Un plan ne peut contenir que des outils énumérés, vise une origine unique, porte une durée courte et devient invalide au moindre changement. La revalidation DNS limite les pivots vers une adresse privée ou locale après planification.
 
-L'exécution s'arrête si le contrat est invalide ou expiré, si la cible sort du périmètre, si une adresse viole la politique réseau, si l'opérateur ne confirme pas l'autorisation, si un secret référencé manque ou si la sortie du modèle ne respecte pas le schéma.
+Les adaptateurs reçoivent uniquement la cible extraite du contrat et des arguments constants. Les processus n'héritent pas des variables secrètes. `http_headers` effectue un unique `HEAD`, valide TLS, refuse les redirections et ne conserve qu'une liste fermée d'en-têtes sans cookies.
 
-## Évolution
+Les sorties d'outils et bannières sont des données non fiables. Elles peuvent être stockées localement sous `.metatron/`, mais ne deviennent jamais des instructions. Ollama n'est joignable qu'en boucle locale, n'a aucun registre d'outils et sa sortie doit respecter le schéma d'assessment.
 
-Une nouvelle capacité doit disposer d'une action de scope dédiée, d'un contrôle déterministe, de tests et d'une trace. Un second agent n'est justifié que par une séparation mesurable de contexte, d'outils, de permissions, de propriétaire ou d'évaluation.
+## Risques et checkpoints
 
-L'authentification Basic et Bearer est disponible dans ce socle. Une authentification par formulaire, SSO ou MFA doit être ajoutée comme adaptateur spécifique après documentation du parcours de connexion de la cible ; les identifiants restent injectés à l'exécution.
+| Niveau | Outils | Checkpoint |
+| --- | --- | --- |
+| `passive` | `dns`, `http_headers`, `whois` | hash du plan |
+| `active` | `nmap_service`, `whatweb` | hash du plan |
+| `noisy` | `nikto` | hash du plan + `--approve-noisy` |
+
+Tous les niveaux exigent un contrat actif. La classification ne remplace jamais l'autorisation du propriétaire.
+
+## États et reprise
+
+Le `plan_id` sert de clé d'idempotence : une réservation locale atomique est créée avant le premier outil et le plan ne peut ensuite pas être rejoué. Après un échec, l'opérateur doit créer, relire et approuver un nouveau plan. Une erreur journalise uniquement son type ; les preuves ne sont émises par la CLI que si le plan se termine entièrement.
+
+## Hors périmètre
+
+L'exploitation autonome, les commandes libres, les scripts générés par modèle, la persistance, l'évasion, le déni de service et le mouvement latéral sont interdits. Une connexion par formulaire, SSO ou MFA n'est pas simulée génériquement : elle nécessite un adaptateur limité et testé à partir du parcours réel de la cible.
