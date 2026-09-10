@@ -1,38 +1,29 @@
 {
   "id": "metatron",
-  "version": 1,
-  "status": "active",
+  "version": 2,
+  "status": "dormant",
   "owner": "Alexandre Carron",
-  "activation": "Commande CLI explicite avec confirmation de l'autorisation",
-  "inputs": [
-    "schemas/engagement.schema.json",
-    "objectif opérateur"
-  ],
-  "reads": [
-    "métadonnées HTTP figurant dans une liste fermée"
-  ],
-  "tools": [
-    "HTTP HEAD sans redirection",
-    "OpenAI Responses API sans stockage"
-  ],
-  "outputs": [
-    "schemas/assessment.schema.json",
-    "journal JSONL sans secret"
-  ],
+  "activation": "Commande CLI explicite après contrat, plan et approbation exacte",
+  "inputs": ["schemas/engagement.schema.json", "schemas/execution-plan.schema.json", "objectif opérateur"],
+  "tools": ["dns", "http_headers", "whois", "nmap_service", "whatweb", "nikto"],
+  "outputs": ["preuves JSON", "schemas/assessment.schema.json", "journal JSONL sans secret"],
   "budgets": {
-    "network_requests_per_run": 1,
+    "tool_runs_per_plan": 20,
+    "plan_ttl_minutes": 60,
     "redirects": 0,
-    "model_calls_per_run": 1
+    "model_calls_per_assessment": 1
   },
   "stop_conditions": [
     "contrat absent, invalide ou expiré",
-    "origine ou action hors périmètre",
+    "origine ou outil hors périmètre",
     "résolution DNS incompatible avec la politique réseau",
-    "confirmation opérateur absente",
+    "plan altéré, non approuvé ou expiré",
+    "approbation bruyante absente",
     "secret référencé absent",
     "sortie IA invalide"
   ],
   "prohibited": [
+    "outil ou argument choisi par le modèle",
     "exploitation autonome",
     "persistance",
     "évasion",
@@ -42,7 +33,9 @@
   "relations": [],
   "evaluations": [
     "metatron.scope-denial",
+    "metatron.plan-integrity",
     "metatron.secret-isolation",
+    "metatron.prompt-injection-boundary",
     "metatron.grounded-assessment"
   ]
 }

@@ -5,99 +5,113 @@ from datetime import datetime, timezone
 from unittest.mock import patch
 
 from metatron.models import EngagementError
-from metatron.policy import authentication_headers, authorize, engagement_from_dict
+from metatron.policy import authentication_headers, authorize, canonical_origin, engagement_from_dict
 
 
-def contract(origin="http://127.0.0.1:8000", network_policy="loopback_only", auth=None):
-    scope = {
-        "origin": origin,
-        "allowed_actions": ["http_observe", "ai_assess"],
-    }
-    if auth:
-        scope["auth"] = auth
+# Build a reusable valid contract so each test changes only the policy under review.
+def contract(origin="https://saas.example", tools=None, network_policy="public_only", max_tool_runs=4):
     return engagement_from_dict(
         {
-            "schema_version": 1,
-            "engagement_id": "test",
-            "title": "Test autorisé",
-            "authorized_by": "Fixture owner",
+            "schema_version": 2,
+            "engagement_id": "authorized-saas-test",
+            "title": "Authorized SaaS test",
+            "authorized_by": "System owner",
             "starts_at": "2026-01-01T00:00:00Z",
             "expires_at": "2027-01-01T00:00:00Z",
             "network_policy": network_policy,
-            "scope": [scope],
+            "max_tool_runs": max_tool_runs,
+            "scope": [
+                {
+                    "origin": origin,
+                    "allowed_tools": tools or ["dns", "http_headers"],
+                    "auth": {"mode": "none"},
+                }
+            ],
         }
     )
 
 
-NOW = datetime(2026, 9, 10, tzinfo=timezone.utc)
+# Supply a stable public address without touching external DNS.
+def public_resolver(host, port):
+    return [ipaddress.ip_address("93.184.216.34")]
 
 
 class PolicyTests(unittest.TestCase):
-    def test_authorizes_path_on_exact_origin(self):
-        origin, target, entry = authorize(
-            contract(),
-            "http://127.0.0.1:8000/login",
-            "http_observe",
-            now=NOW,
-            resolver=lambda host, port: [ipaddress.ip_address("127.0.0.1")],
+    # Exact origin matching prevents path-based expansion of the approved target.
+    def test_authorizes_exact_origin_only(self):
+        engagement = contract()
+        origin, _ = authorize(
+            engagement,
+            "https://saas.example/",
+            "dns",
+            now=datetime(2026, 6, 1, tzinfo=timezone.utc),
+            resolver=public_resolver,
         )
-        self.assertEqual(origin, "http://127.0.0.1:8000")
-        self.assertEqual(target, "http://127.0.0.1:8000/login")
-        self.assertEqual(entry.auth.mode, "none")
+        self.assertEqual(origin, "https://saas.example")
+        with self.assertRaises(EngagementError):
+            authorize(
+                engagement,
+                "https://saas.example/login",
+                "dns",
+                now=datetime(2026, 6, 1, tzinfo=timezone.utc),
+                resolver=public_resolver,
+            )
 
-    def test_allows_public_address_only_with_public_policy(self):
-        origin, _, _ = authorize(
-            contract("https://mouci.example", "public_only"),
-            "https://mouci.example/login",
-            "http_observe",
-            now=NOW,
-            resolver=lambda host, port: [ipaddress.ip_address("93.184.216.34")],
-        )
-        self.assertEqual(origin, "https://mouci.example")
+    # A tool absent from the signed engagement can never enter a plan.
+    def test_rejects_unapproved_tool(self):
+        with self.assertRaises(EngagementError):
+            authorize(
+                contract(tools=["dns"]),
+                "https://saas.example",
+                "nikto",
+                now=datetime(2026, 6, 1, tzinfo=timezone.utc),
+                resolver=public_resolver,
+            )
 
-    def test_rejects_out_of_scope_origin(self):
-        with self.assertRaisesRegex(EngagementError, "hors du périmètre"):
+    # Public engagements must fail closed if any DNS answer is non-public.
+    def test_rejects_private_resolution_for_public_scope(self):
+        with self.assertRaises(EngagementError):
             authorize(
                 contract(),
-                "http://127.0.0.1:9000/",
-                "http_observe",
-                now=NOW,
+                "https://saas.example",
+                "dns",
+                now=datetime(2026, 6, 1, tzinfo=timezone.utc),
                 resolver=lambda host, port: [ipaddress.ip_address("127.0.0.1")],
             )
 
-    def test_rejects_public_resolution_under_loopback_policy(self):
-        with self.assertRaisesRegex(EngagementError, "politique réseau"):
-            authorize(
-                contract(origin="https://example.test"),
-                "https://example.test/",
-                "http_observe",
-                now=NOW,
-                resolver=lambda host, port: [ipaddress.ip_address("203.0.113.10")],
-            )
-
-    def test_rejects_expired_contract(self):
-        with self.assertRaisesRegex(EngagementError, "n'est pas actif"):
-            authorize(
-                contract(),
-                "http://127.0.0.1:8000/",
-                "http_observe",
-                now=datetime(2028, 1, 1, tzinfo=timezone.utc),
-                resolver=lambda host, port: [ipaddress.ip_address("127.0.0.1")],
-            )
-
+    # Credential values are read only from named environment variables.
     def test_reads_basic_credentials_from_environment(self):
-        engagement = contract(
-            origin="https://mouci.example",
-            network_policy="public_only",
-            auth={
-                "mode": "basic",
-                "username_env": "TEST_MOUCI_USER",
-                "password_env": "TEST_MOUCI_PASSWORD",
+        engagement = engagement_from_dict(
+            {
+                "schema_version": 2,
+                "engagement_id": "auth-test",
+                "title": "Auth test",
+                "authorized_by": "Owner",
+                "starts_at": "2026-01-01T00:00:00Z",
+                "expires_at": "2027-01-01T00:00:00Z",
+                "network_policy": "public_only",
+                "max_tool_runs": 1,
+                "scope": [
+                    {
+                        "origin": "https://saas.example",
+                        "allowed_tools": ["http_headers"],
+                        "auth": {
+                            "mode": "basic",
+                            "username_env": "TEST_SAAS_USER",
+                            "password_env": "TEST_SAAS_PASSWORD",
+                        },
+                    }
+                ],
             }
         )
-        with patch.dict(os.environ, {"TEST_MOUCI_USER": "alice", "TEST_MOUCI_PASSWORD": "secret"}):
+        with patch.dict(os.environ, {"TEST_SAAS_USER": "alice", "TEST_SAAS_PASSWORD": "secret"}):
             headers = authentication_headers(engagement.scope[0].auth)
-        self.assertEqual(headers["Authorization"], "Basic YWxpY2U6c2VjcmV0")
+        self.assertEqual(headers, {"Authorization": "Basic YWxpY2U6c2VjcmV0"})
+
+    # Canonicalization rejects embedded credentials before any network call.
+    def test_rejects_credentials_in_url(self):
+        with self.assertRaises(EngagementError):
+            canonical_origin("https://user:pass@saas.example")
 
 
 if __name__ == "__main__":

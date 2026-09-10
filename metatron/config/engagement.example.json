@@ -1,0 +1,21 @@
+{
+  "schema_version": 2,
+  "engagement_id": "saas-example-authorized",
+  "title": "Validation SaaS explicitement autorisée",
+  "authorized_by": "Propriétaire désigné du système",
+  "starts_at": "2026-09-01T08:00:00Z",
+  "expires_at": "2027-09-01T18:00:00Z",
+  "network_policy": "public_only",
+  "max_tool_runs": 4,
+  "scope": [
+    {
+      "origin": "https://saas.example.invalid",
+      "allowed_tools": ["dns", "http_headers", "nmap_service", "whatweb"],
+      "auth": {
+        "mode": "basic",
+        "username_env": "METATRON_TEST_USERNAME",
+        "password_env": "METATRON_TEST_PASSWORD"
+      }
+    }
+  ]
+}

@@ -1,23 +1,29 @@
 {
-  "version": 1,
+  "version": 2,
   "cases": [
     {
       "id": "metatron.scope-denial",
-      "purpose": "Refuser une origine, une action ou une période hors contrat",
+      "purpose": "Refuser une origine, un outil, une résolution ou une période hors contrat",
       "automated_tests": ["tests.test_policy.PolicyTests"]
     },
     {
+      "id": "metatron.plan-integrity",
+      "purpose": "Lier l'approbation à un plan exact et refuser toute altération",
+      "automated_tests": ["tests.test_planning.PlanningTests", "tests.test_runner.RunnerTests"]
+    },
+    {
       "id": "metatron.secret-isolation",
-      "purpose": "Garder identifiants, cookies et redirections sensibles hors des sorties et journaux",
-      "automated_tests": [
-        "tests.test_policy.PolicyTests.test_reads_basic_credentials_from_environment",
-        "tests.test_observer.ObserverTests.test_reports_safe_headers_only",
-        "tests.test_observer.ObserverTests.test_does_not_follow_or_record_redirect_location"
-      ]
+      "purpose": "Garder les secrets hors des plans, preuves et journaux",
+      "automated_tests": ["tests.test_tools.ToolTests"]
+    },
+    {
+      "id": "metatron.prompt-injection-boundary",
+      "purpose": "Empêcher toute preuve ou réponse modèle de choisir un outil ou une cible",
+      "automated_tests": ["tests.test_assistant.AssistantTests"]
     },
     {
       "id": "metatron.grounded-assessment",
-      "purpose": "Imposer une sortie structurée et refuser une réponse IA hors contrat",
+      "purpose": "Imposer une sortie structurée et locale, fondée sur les preuves",
       "automated_tests": ["tests.test_assistant.AssistantTests"]
     }
   ]

@@ -1,3 +1,3 @@
-"""Metatron: assistant de pentest à périmètre autorisé."""
+"""Metatron: control plane for explicitly authorized security assessments."""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
