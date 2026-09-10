@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "engagement_id": "mouci-local",
+  "title": "Validation SaaS autorisée du projet Mouci",
+  "authorized_by": "Propriétaire du projet Mouci",
+  "starts_at": "2026-09-10T00:00:00+02:00",
+  "expires_at": "2027-09-10T00:00:00+02:00",
+  "network_policy": "public_only",
+  "scope": [
+    {
+      "origin": "https://mouci.example.invalid",
+      "allowed_actions": [
+        "http_observe",
+        "ai_assess"
+      ],
+      "auth": {
+        "mode": "basic",
+        "username_env": "METATRON_MOUCI_USERNAME",
+        "password_env": "METATRON_MOUCI_PASSWORD"
+      }
+    }
+  ]
+}
